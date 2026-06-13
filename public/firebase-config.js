@@ -18,5 +18,5 @@ export const firebaseConfig = {
 // which you must update with the SAME emails.
 export const ALLOWED_EMAILS = [
   "ericjurban@gmail.com",
-  "REPLACE_WITH_WIFE_EMAIL@gmail.com",
+  "laura.s.urban@gmail.com",
 ];
