@@ -6,7 +6,7 @@
 #  2. In GitHub: repo -> Settings -> Secrets and variables -> Actions ->
 #     "New repository secret". Name it FIREBASE_SERVICE_ACCOUNT and paste the
 #     entire contents of that JSON file as the value.
-#  3. Replace PASTE_PROJECT_ID below with your Firebase project ID.
+#  3. Replace cashflow-1da5a below with your Firebase project ID.
 name: Deploy to Firebase Hosting
 
 on:
@@ -23,4 +23,4 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
-          projectId: PASTE_PROJECT_ID
+          projectId: cashflow-1da5a
