@@ -1,0 +1,20 @@
+# Render Blueprint — provisions the whole app automatically.
+# On Render: New +  ->  Blueprint  ->  pick this repo  ->  enter a password  ->  Apply.
+# This creates a web service with a 1 GB persistent disk so your numbers are saved.
+services:
+  - type: web
+    name: shared-cashflow
+    runtime: node
+    plan: starter            # required for a persistent disk
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: CASHFLOW_PASSWORD
+        sync: false           # you'll be prompted to type this in the dashboard
+      - key: DATA_DIR
+        value: /var/data
+    disk:
+      name: cashflow-data
+      mountPath: /var/data
+      sizeGB: 1

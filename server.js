@@ -7,7 +7,8 @@ const { buildSeed } = require("./data/seed");
 
 const PORT = process.env.PORT || 3000;
 const PASSWORD = process.env.CASHFLOW_PASSWORD || "";
-const DATA_DIR = path.join(__dirname, "data");
+// DATA_DIR lets a host point storage at a mounted persistent disk.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const STORE = path.join(DATA_DIR, "store.json");
 
 if (!PASSWORD) {
