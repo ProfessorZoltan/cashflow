@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Shared Cashflow</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Login -->
+  <div id="login" class="login hidden">
+    <form id="loginForm" class="login-card">
+      <h1>Shared Cashflow</h1>
+      <p class="muted">Who's editing?</p>
+      <div class="profile-row">
+        <button type="button" class="profile-btn" data-profile="Eric">Eric</button>
+        <button type="button" class="profile-btn" data-profile="Laura">Laura</button>
+      </div>
+      <input id="password" type="password" placeholder="Shared password" autocomplete="current-password" />
+      <button id="loginBtn" type="submit">Open</button>
+      <p id="loginError" class="error"></p>
+    </form>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="brand">Cashflow</div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="calendar">Daily</button>
+        <button class="tab" data-tab="items">Recurring</button>
+        <button class="tab" data-tab="overrides">Overrides</button>
+      </nav>
+      <div class="who">
+        <span id="whoLabel" class="pill"></span>
+        <span id="syncDot" class="dot" title="Synced"></span>
+      </div>
+    </header>
+
+    <!-- DAILY -->
+    <section id="tab-calendar" class="tab-panel">
+      <div class="toolbar">
+        <button id="todayBtn" class="ghost">Jump to today</button>
+        <label class="rangelabel">Show next
+          <select id="horizon">
+            <option value="30">30 days</option>
+            <option value="60">60 days</option>
+            <option value="90" selected>90 days</option>
+            <option value="180">180 days</option>
+            <option value="365">1 year</option>
+          </select>
+        </label>
+        <span id="lowWarn" class="warn hidden"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="cal">
+          <thead>
+            <tr>
+              <th class="c-date">Date</th>
+              <th class="c-bal">Start balance</th>
+              <th class="c-num">In</th>
+              <th class="c-num">Out</th>
+              <th class="c-bal">End balance</th>
+              <th class="c-det"></th>
+            </tr>
+          </thead>
+          <tbody id="calBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RECURRING ITEMS -->
+    <section id="tab-items" class="tab-panel hidden">
+      <div class="toolbar">
+        <button id="addItemBtn" class="primary">+ Add item</button>
+      </div>
+      <div id="itemsList" class="cards"></div>
+    </section>
+
+    <!-- OVERRIDES -->
+    <section id="tab-overrides" class="tab-panel hidden">
+      <p class="muted pad">Override the next few occurrences of any item when a value differs from the usual (e.g. a bigger paycheck or a one-off larger bill). The schedule and default amount stay unchanged.</p>
+      <div class="toolbar">
+        <button id="addOverrideBtn" class="primary">+ Add override</button>
+      </div>
+      <div id="overridesList" class="cards"></div>
+    </section>
+  </div>
+
+  <!-- Modal host -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card" id="modalCard"></div>
+  </div>
+
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
