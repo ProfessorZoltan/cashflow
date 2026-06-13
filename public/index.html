@@ -9,18 +9,15 @@
 </head>
 <body>
   <!-- Login -->
-  <div id="login" class="login hidden">
-    <form id="loginForm" class="login-card">
+  <div id="login" class="login">
+    <div class="login-card">
       <h1>Shared Cashflow</h1>
-      <p class="muted">Who's editing?</p>
-      <div class="profile-row">
-        <button type="button" class="profile-btn" data-profile="Eric">Eric</button>
-        <button type="button" class="profile-btn" data-profile="Laura">Laura</button>
-      </div>
-      <input id="password" type="password" placeholder="Shared password" autocomplete="current-password" />
-      <button id="loginBtn" type="submit">Open</button>
+      <p class="muted">Sign in with your Google account to view and edit your shared daily cashflow.</p>
+      <button id="googleBtn" class="google-btn" type="button">
+        <span class="g">G</span> Sign in with Google
+      </button>
       <p id="loginError" class="error"></p>
-    </form>
+    </div>
   </div>
 
   <!-- App -->
@@ -34,7 +31,8 @@
       </nav>
       <div class="who">
         <span id="whoLabel" class="pill"></span>
-        <span id="syncDot" class="dot" title="Synced"></span>
+        <span id="syncDot" class="dot" title="Synced live"></span>
+        <button id="signoutBtn" class="ghost small" title="Sign out">Sign out</button>
       </div>
     </header>
 
@@ -93,7 +91,9 @@
     <div class="modal-card" id="modalCard"></div>
   </div>
 
+  <!-- Engine + seed are plain scripts (set window globals) and run before the module. -->
   <script src="engine.js"></script>
-  <script src="app.js"></script>
+  <script src="seed.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

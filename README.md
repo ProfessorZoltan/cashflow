@@ -1,75 +1,109 @@
-# Shared Cashflow
+# Shared Cashflow (Firebase)
 
-A small web app for Eric & Laura to **view and edit a shared daily cashflow
-projection** from any device. It's seeded from the **March 2026** tab of the
-household Google Sheet and then maintained inside the app (the sheet is only the
-starting point — edits live in this app, not the sheet).
+A web app for Eric & Laura to **view and edit a shared daily cashflow
+projection** from any device, with **live sync** and **Google sign-in**. It's
+seeded from the **March 2026** tab of the household Google Sheet and then
+maintained inside the app.
 
-Both people hit the same server, so edits made by one show up for the other
-within a few seconds.
+- **No server to run or pay for.** The app is static files hosted on Firebase
+  Hosting; the shared data lives in Firebase Firestore (Google's realtime
+  database). Easily within Firebase's free "Spark" plan for two people.
+- **Live updates.** When one person edits, the other sees it within a second.
+- **Locked to your two Google accounts.** Nobody else can open the data.
 
 ## What you can do
 
-- **Daily view** — every day shows start balance, money in, money out, and end
-  balance, projected forward from your recurring items. Defaults to today.
-- **Match your bank** — click any day's **start** or **end** balance and type the
-  real number. That "anchors" the balance for that day and re-bases the
-  projection from there. The dot (●) marks an anchored day; clear the box to
-  remove it. This is how you keep the projection honest against your actual
-  account.
-- **Recurring items** — add/edit income and expenses with four schedules:
-  - **Monthly** on a day of the month (e.g. Mortgage on the 15th)
-  - **Weekly** on a day of the week (e.g. a weekly paycheck)
-  - **Every 2 weeks** anchored to a known date (e.g. Eric's biweekly pay)
-  - **Ongoing** — a monthly total spread evenly across each day (e.g. groceries)
-- **Overrides** — when an item's next value differs from usual, override the
-  **next X instances** without changing the recurring default. Enter one amount
-  for all of them, or a comma-separated list to set each instance
-  (e.g. `1200, 1100, 1300`).
-- **One-off entries** — expand a day (the `›` button) to add a one-time
-  miscellaneous income or expense for just that day.
+- **Daily view** — each day shows start balance, money in, money out, and end
+  balance, projected forward. Defaults to today.
+- **Match your bank** — click any day's **start** or **end** balance and type
+  the real number. That "anchors" the balance (●) and re-bases the projection
+  from there. Clear the box to remove it.
+- **Recurring items** — income/expenses with four schedules: **Monthly** (day
+  of month), **Weekly** (day of week), **Every 2 weeks** (anchored to a date),
+  and **Ongoing** (a monthly total spread evenly across each day).
+- **Overrides** — override the **next X instances** of an item when a value
+  differs from usual, without changing the default. One amount for all, or a
+  comma-separated list per instance (e.g. `1200, 1100, 1300`).
+- **One-off entries** — expand a day (`›`) to add a one-time misc income/expense.
 
-## Run it
+---
 
-```bash
-npm install
-CASHFLOW_PASSWORD='pick-a-shared-secret' npm start
-# open http://localhost:3000
-```
+## One-time setup (all in a web browser — no terminal needed)
 
-On first run it creates `data/store.json` from the seed. That JSON file is the
-database — back it up and it persists across restarts.
+### 1. Create the Firebase project
+1. Go to <https://console.firebase.google.com> and sign in with your Google
+   account → **Add project** → name it (e.g. `our-cashflow`) → you can disable
+   Google Analytics → **Create project**.
 
-### Deploying so you can both reach it
+### 2. Turn on Google sign-in
+1. Left menu → **Build → Authentication → Get started**.
+2. **Sign-in method** tab → **Google** → enable → pick a support email → **Save**.
 
-Host it anywhere that runs Node (Render, Railway, Fly.io, a small VPS):
+### 3. Create the database
+1. Left menu → **Build → Firestore Database → Create database**.
+2. Start in **production mode** → pick a location near you → **Enable**.
 
-- Start command: `npm start`
-- Set the env var `CASHFLOW_PASSWORD` to a shared password (without it the app
-  warns and runs unprotected — only do that locally).
-- Optionally set `PORT`.
-- **Persist `data/store.json`** — mount a volume or disk at the `data/`
-  directory so your numbers survive restarts/redeploys. On a platform with an
-  ephemeral filesystem and no volume, edits would be lost on redeploy.
+### 4. Lock it to your two accounts
+1. Firestore Database → **Rules** tab.
+2. Open `firestore.rules` from this repo, replace
+   `REPLACE_WITH_WIFE_EMAIL@gmail.com` with your wife's real Google email,
+   then paste the whole file into the editor → **Publish**.
 
-### Re-seed from the sheet
+### 5. Get your web config
+1. Project **settings** (gear icon, top-left) → scroll to **Your apps** →
+   click the **Web** icon (`</>`) → register an app (any nickname) → it shows a
+   `firebaseConfig` block.
+2. Copy those values into `public/firebase-config.js`, and put the same two
+   emails in `ALLOWED_EMAILS` there. (These values are not secret.)
 
-`npm run seed` rewrites `data/store.json` back to the March 2026 starting data.
-This **discards** in-app edits, so only use it to start over.
+### 6. Set up auto-deploy from GitHub
+1. Firebase project **settings → Service accounts → Generate new private key**
+   → download the JSON file.
+2. In GitHub: this repo → **Settings → Secrets and variables → Actions → New
+   repository secret**. Name it **`FIREBASE_SERVICE_ACCOUNT`** and paste the
+   entire JSON file contents as the value.
+3. Replace `PASTE_PROJECT_ID` with your Firebase **Project ID** in two files:
+   `.firebaserc` and `.github/workflows/firebase-hosting.yml`.
+
+### 7. Deploy
+Commit the edits from steps 5–6 to the **`main`** branch (editing files on
+github.com and clicking "Commit changes" is fine). The included GitHub Action
+builds and deploys automatically. When it finishes (green check under the
+repo's **Actions** tab), your app is live at
+`https://YOUR_PROJECT_ID.web.app`.
+
+### 8. Authorize the live domain
+1. Firebase **Authentication → Settings → Authorized domains → Add domain** →
+   add `YOUR_PROJECT_ID.web.app` (the Firebase-provided ones are usually there
+   already; add it if missing).
+2. Open the URL on both your phones, **Sign in with Google**, and bookmark /
+   add to home screen.
+
+The first time it opens on the empty database, it writes the March 2026
+starting data automatically. Then fix anything that's off in the **Recurring**
+tab (e.g. Laura's PDA pay amount/day, which I estimated from the sheet) and set
+today's **End balance** to your real bank balance.
+
+---
+
+## Running it on your computer (optional)
+You don't need to, but to preview locally: `npm run dev` (serves `public/` via
+`npx serve`). You still need the Firebase config filled in and the domain
+`localhost` added under Authentication → Authorized domains.
 
 ## How the numbers work
-
-The projection runs day by day. Each day's end balance = start + income −
-expenses. A known (anchored) balance overrides the running value for that day
+The projection runs day by day: each day's end balance = start + income −
+expenses. A known (anchored) balance overrides the running value for that day,
 and everything after recomputes from it. Ongoing items contribute
 `monthlyTotal / daysInThatMonth` each day. Overrides consume the next matching
 occurrences of an item on or after their start date.
 
-## Tech
-
-- `server.js` — Express API + static host. Shared state in `data/store.json`,
-  saved atomically with optimistic-concurrency (version) checks so simultaneous
-  edits don't clobber each other.
-- `public/engine.js` — the projection engine (also usable in Node).
-- `public/app.js` / `index.html` / `styles.css` — the mobile-friendly UI.
-- `data/seed.js` — the March 2026 starting data.
+## Files
+- `public/index.html`, `app.js`, `styles.css` — the UI (`app.js` talks to
+  Firebase directly).
+- `public/engine.js` — the projection engine.
+- `public/seed.js` — March 2026 starting data (written once to Firestore).
+- `public/firebase-config.js` — your project's web config + allowed emails.
+- `firestore.rules` — access locked to your two emails.
+- `firebase.json`, `.firebaserc`, `.github/workflows/firebase-hosting.yml` —
+  hosting + auto-deploy config.

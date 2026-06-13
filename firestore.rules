@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// Only the two household Google accounts may read or write any data.
+//
+// IMPORTANT: replace the second email with your wife's real Google address,
+// then paste these rules into the Firebase console
+// (Firestore Database -> Rules -> Publish). They must match the emails in
+// public/firebase-config.js.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+             'ericjurban@gmail.com',
+             'REPLACE_WITH_WIFE_EMAIL@gmail.com'
+           ];
+    }
+
+    match /{document=**} {
+      allow read, write: if allowed();
+    }
+  }
+}

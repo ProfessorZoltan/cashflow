@@ -1,5 +1,7 @@
 node_modules/
-data/store.json
-data/store.json.tmp
 .env
 *.log
+.firebase/
+firebase-debug.log
+# Never commit a downloaded service-account key
+*serviceAccount*.json

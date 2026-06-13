@@ -1,0 +1,26 @@
+# Auto-deploys the app to Firebase Hosting whenever you push to `main`.
+#
+# One-time setup (all in a web browser, no terminal):
+#  1. In the Firebase console: Project settings -> Service accounts ->
+#     "Generate new private key" -> download the JSON file.
+#  2. In GitHub: repo -> Settings -> Secrets and variables -> Actions ->
+#     "New repository secret". Name it FIREBASE_SERVICE_ACCOUNT and paste the
+#     entire contents of that JSON file as the value.
+#  3. Replace PASTE_PROJECT_ID below with your Firebase project ID.
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: PASTE_PROJECT_ID
