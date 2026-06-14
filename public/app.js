@@ -148,12 +148,16 @@ $$(".tab").forEach((t) =>
   t.addEventListener("click", () => {
     $$(".tab").forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
-    ["calendar", "items", "overrides"].forEach((name) =>
+    ["calendar", "items", "overrides", "graph"].forEach((name) =>
       $(`#tab-${name}`).classList.toggle("hidden", name !== t.dataset.tab)
     );
+    if (t.dataset.tab === "graph") renderGraph();
   })
 );
 $("#horizon").addEventListener("change", render);
+$("#graphHorizon").addEventListener("change", renderGraph);
+let _grResize;
+window.addEventListener("resize", () => { clearTimeout(_grResize); _grResize = setTimeout(renderGraph, 150); });
 $("#todayBtn").addEventListener("click", scrollToToday);
 $("#addItemBtn").addEventListener("click", () => openItemModal(null));
 $("#addOverrideBtn").addEventListener("click", () => openOverrideModal(null));
@@ -180,6 +184,7 @@ function render() {
   renderCalendar();
   renderItems();
   renderOverrides();
+  renderGraph();
 }
 
 function renderCalendar() {
@@ -395,6 +400,107 @@ function renderOverrides() {
     card.appendChild(actions);
     wrap.appendChild(card);
   });
+}
+
+// ===================== BALANCE GRAPH =====================
+const LOW_THRESHOLD = 1000;
+
+function renderGraph() {
+  const wrap = $("#graphWrap");
+  if (!wrap) return;
+  const W = Math.round(wrap.clientWidth);
+  if (W < 80) return; // panel not visible yet; will draw when opened/resized
+
+  const horizon = parseInt($("#graphHorizon").value, 10) || 180;
+  const today = new Date();
+
+  // Project from the earliest known balance so the running total is carried
+  // forward correctly, then display from a week before today onward.
+  let earliest = null;
+  data.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
+  const projStart = earliest && earliest < today ? earliest : E.addDays(today, -7);
+  const allRows = E.project(data, E.iso(projStart), E.iso(E.addDays(today, horizon)));
+  const displayStart = E.iso(E.addDays(today, -7));
+  const rows = allRows.filter((r) => r.date >= displayStart);
+  if (rows.length < 2) { wrap.innerHTML = `<p class="muted">Not enough data to chart yet.</p>`; return; }
+
+  const vals = rows.map((r) => r.end);
+  const n = rows.length;
+  const H = 280, padL = 58, padR = 14, padT = 16, padB = 26;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const actualMax = Math.max(...vals);
+  const actualMin = Math.min(...vals);
+  let maxV = Math.max(actualMax, LOW_THRESHOLD);
+  let minV = Math.min(actualMin, 0);
+  const span = (maxV - minV) || 1;
+  maxV += span * 0.06;
+  minV -= span * 0.04;
+  const range = maxV - minV;
+
+  const x = (i) => padL + (n === 1 ? plotW / 2 : (i * plotW) / (n - 1));
+  const y = (v) => padT + ((maxV - v) / range) * plotH;
+  const baseY = padT + plotH;
+
+  const linePts = rows.map((r, i) => `${x(i).toFixed(1)},${y(r.end).toFixed(1)}`).join(" ");
+  const areaPath =
+    `M ${x(0).toFixed(1)},${baseY.toFixed(1)} ` +
+    rows.map((r, i) => `L ${x(i).toFixed(1)},${y(r.end).toFixed(1)}`).join(" ") +
+    ` L ${x(n - 1).toFixed(1)},${baseY.toFixed(1)} Z`;
+
+  // Red regions where balance is below the threshold (clipped to the area).
+  const redRects = [];
+  let i = 0;
+  while (i < n) {
+    if (vals[i] < LOW_THRESHOLD) {
+      let j = i;
+      while (j + 1 < n && vals[j + 1] < LOW_THRESHOLD) j++;
+      const x0 = x(i) - (i > 0 ? (x(i) - x(i - 1)) / 2 : 0);
+      const x1 = x(j) + (j < n - 1 ? (x(j + 1) - x(j)) / 2 : 0);
+      redRects.push(`<rect x="${x0.toFixed(1)}" y="${padT}" width="${Math.max(0, x1 - x0).toFixed(1)}" height="${plotH}" fill="#f87171" fill-opacity="0.5"/>`);
+      i = j + 1;
+    } else i++;
+  }
+
+  const yThresh = y(LOW_THRESHOLD).toFixed(1);
+  const yZero = minV <= 0 && maxV >= 0 ? y(0).toFixed(1) : null;
+  const todayIdx = rows.findIndex((r) => r.date === todayISO());
+  const todayX = todayIdx >= 0 ? x(todayIdx).toFixed(1) : null;
+  const axis = (v) => (v < 0 ? "-$" : "$") + Math.abs(Math.round(v)).toLocaleString();
+  const xLabel = (i) => { const d = E.parseISO(rows[i].date); return `${MON[d.getMonth()]} ${d.getDate()}`; };
+
+  wrap.innerHTML = `
+  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance over time">
+    <defs><clipPath id="areaClip"><path d="${areaPath}"/></clipPath></defs>
+    <path d="${areaPath}" fill="#34d399" fill-opacity="0.28"/>
+    <g clip-path="url(#areaClip)">${redRects.join("")}</g>
+    ${yZero ? `<line x1="${padL}" y1="${yZero}" x2="${W - padR}" y2="${yZero}" stroke="#64748b" stroke-width="1" opacity="0.45"/>` : ""}
+    <line x1="${padL}" y1="${yThresh}" x2="${W - padR}" y2="${yThresh}" stroke="#f87171" stroke-width="1" stroke-dasharray="5 4" opacity="0.85"/>
+    <polyline points="${linePts}" fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round"/>
+    ${todayX ? `<line x1="${todayX}" y1="${padT}" x2="${todayX}" y2="${baseY}" stroke="#38bdf8" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="${todayX}" y="${padT - 4}" text-anchor="middle" fill="#38bdf8" font-size="10">today</text>` : ""}
+    <text x="${padL - 6}" y="${y(actualMax).toFixed(1)}" text-anchor="end" dominant-baseline="middle" fill="#94a3b8" font-size="11">${axis(actualMax)}</text>
+    <text x="${padL - 6}" y="${(Number(yThresh)).toFixed(1)}" text-anchor="end" dominant-baseline="middle" fill="#f87171" font-size="11">$1k</text>
+    <text x="${padL - 6}" y="${y(actualMin).toFixed(1)}" text-anchor="end" dominant-baseline="middle" fill="#94a3b8" font-size="11">${axis(actualMin)}</text>
+    <text x="${x(0).toFixed(1)}" y="${H - 8}" text-anchor="start" fill="#94a3b8" font-size="11">${xLabel(0)}</text>
+    <text x="${x(n - 1).toFixed(1)}" y="${H - 8}" text-anchor="end" fill="#94a3b8" font-size="11">${xLabel(n - 1)}</text>
+  </svg>`;
+
+  // Summary stats
+  let minRow = rows[0];
+  rows.forEach((r) => { if (r.end < minRow.end) minRow = r; });
+  const md = E.parseISO(minRow.date);
+  const last = rows[n - 1];
+  $("#graphStats").innerHTML =
+    statCard("Lowest balance ahead", fmt(minRow.end), `${MON[md.getMonth()]} ${md.getDate()}`, minRow.end < LOW_THRESHOLD) +
+    statCard(`In ${horizon} days`, fmt(last.end), xLabel(n - 1), last.end < LOW_THRESHOLD);
+}
+
+function statCard(lbl, val, sub, danger) {
+  return `<div class="graph-stat"><div class="lbl">${lbl}</div>` +
+    `<div class="val ${danger ? "neg" : "pos"}">${val}</div>` +
+    `<div class="lbl">${sub || ""}</div></div>`;
 }
 
 // ===================== MODALS =====================
