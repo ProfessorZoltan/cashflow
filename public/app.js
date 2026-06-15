@@ -21,6 +21,7 @@ setPersistence(auth, browserLocalPersistence).catch(() => {});
 const data = { items: [], overrides: [], anchors: [], manual: [], dayOverrides: [] };
 let me = { name: "", email: "" };
 let openDetails = {};
+let showPast = localStorage.getItem("cf_showPast") === "1";
 let unsub = [];
 let renderQueued = false;
 
@@ -165,6 +166,12 @@ $$(".tab").forEach((t) =>
   })
 );
 $("#horizon").addEventListener("change", render);
+$("#togglePast").addEventListener("click", () => {
+  showPast = !showPast;
+  localStorage.setItem("cf_showPast", showPast ? "1" : "0");
+  renderCalendar();
+  if (!showPast) setTimeout(scrollToToday, 30);
+});
 $("#graphHorizon").addEventListener("change", renderGraph);
 let _grResize;
 window.addEventListener("resize", () => { clearTimeout(_grResize); _grResize = setTimeout(renderGraph, 150); });
@@ -198,9 +205,13 @@ function render() {
 }
 
 function renderCalendar() {
+  updatePastBtn();
   const { fromISO, toISO } = projectionRange();
-  const rows = E.project(data, fromISO, toISO);
+  const allRows = E.project(data, fromISO, toISO);
   const tISO = todayISO();
+  // Always project from the earliest balance so the running total is correct,
+  // but hide days before today unless the user opts to show them.
+  const rows = showPast ? allRows : allRows.filter((r) => r.date >= tISO);
   const body = $("#calBody");
   body.innerHTML = "";
   let firstNeg = null;
@@ -383,6 +394,11 @@ function detailRow(r) {
 function scrollToToday() {
   const el = $("#row-" + todayISO());
   if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function updatePastBtn() {
+  const b = $("#togglePast");
+  if (b) b.textContent = showPast ? "Hide past days" : "Show past days";
 }
 
 function renderItems() {
