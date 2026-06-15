@@ -9,6 +9,7 @@
   --green: #34d399;
   --red: #f87171;
   --amber: #fbbf24;
+  --orange: #fb923c;
   --radius: 12px;
 }
 * { box-sizing: border-box; }
@@ -119,10 +120,13 @@ td.c-date { text-align: left; white-space: nowrap; }
 .editbal:hover { border-color: var(--line); }
 .editbal:focus { border-color: var(--accent); outline: none; background: var(--panel-2); }
 .editbal.anchored { color: var(--accent); font-weight: 700; }
+.editbal.low { color: var(--red) !important; font-weight: 700; }
+td.c-bal.bal-low { background: rgba(248, 113, 113, 0.12); }
 .anchormark { color: var(--accent); font-size: 11px; }
 .num { font-variant-numeric: tabular-nums; }
 .pos { color: var(--green); }
 .neg { color: var(--red); }
+.out-total { color: var(--orange); }
 .det-btn { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 2px 8px; }
 .det-row td { background: #16213a; }
 .det-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }

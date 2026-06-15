@@ -243,7 +243,7 @@ function renderCalendar() {
     tr.appendChild(tdIn);
 
     const tdOut = document.createElement("td");
-    tdOut.className = "c-num num neg";
+    tdOut.className = "c-num num out-total";
     tdOut.textContent = r.expense ? fmt(r.expense) : "";
     tr.appendChild(tdOut);
 
@@ -277,13 +277,16 @@ function renderCalendar() {
 
 function balCell(r, kind) {
   const td = document.createElement("td");
-  td.className = "c-bal";
   const val = kind === "start" ? r.start : r.end;
   const anchored = kind === "start" ? r.anchoredStart : r.anchoredEnd;
+  // Flag start balances that fall below $1,000 (covers negatives too).
+  const low = kind === "start" && val < LOW_THRESHOLD;
+  const neg = kind === "end" && val < 0;
+  td.className = "c-bal" + (low ? " bal-low" : "");
   const wrap = document.createElement("div");
   wrap.className = "balcell";
   const input = document.createElement("input");
-  input.className = "editbal num" + (anchored ? " anchored" : "") + (val < 0 ? " c-bal-val neg" : "");
+  input.className = "editbal num" + (anchored ? " anchored" : "") + (low ? " low" : "") + (neg ? " c-bal-val neg" : "");
   input.value = Math.round(val);
   input.inputMode = "numeric";
   input.title = anchored ? "Known balance — change it, or clear the box to remove." : "Click to set the real bank balance for this day";
