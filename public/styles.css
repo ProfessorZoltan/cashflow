@@ -128,6 +128,18 @@ td.c-date { text-align: left; white-space: nowrap; }
 .det-list { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
 .det-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .det-line .ov { color: var(--amber); font-size: 11px; margin-left: 6px; }
+.det-amt { display: inline-flex; align-items: center; gap: 5px; }
+.det-sign { font-size: 13px; }
+.det-sign.pos, .det-edit.pos { color: var(--green); }
+.det-sign.neg, .det-edit.neg { color: var(--red); }
+.det-edit {
+  background: transparent; border: 1px solid transparent; text-align: right; width: 66px;
+  padding: 3px 5px; border-radius: 6px; font-variant-numeric: tabular-nums;
+}
+.det-edit:hover { border-color: var(--line); }
+.det-edit:focus { border-color: var(--accent); outline: none; background: var(--panel-2); }
+.det-edit.ov-edit { color: var(--amber) !important; border-color: var(--amber); font-weight: 700; }
+.det-revert { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 2px 7px; font-size: 12px; line-height: 1.2; }
 .det-add { margin-top: 6px; display: flex; gap: 8px; }
 .det-add button { background: transparent; border: 1px dashed var(--line); color: var(--muted); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
 

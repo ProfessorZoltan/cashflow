@@ -24,6 +24,9 @@ maintained inside the app.
 - **Overrides** — override the **next X instances** of an item when a value
   differs from usual, without changing the default. One amount for all, or a
   comma-separated list per instance (e.g. `1200, 1100, 1300`).
+- **Edit a single day in place** — expand a day (`›`) and type a new amount on
+  any income/expense line to change just that one occurrence; other days are
+  untouched. A `↺` reverts it to the usual amount.
 - **One-off entries** — expand a day (`›`) to add a one-time misc income/expense.
 
 ---

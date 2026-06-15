@@ -103,19 +103,26 @@
   }
 
   // Signed daily contribution of an item on date d (income +, expense -).
-  // Also advances the override counter when an occurrence happens.
-  function itemContribution(item, d, ovState) {
+  // A per-day override (dayOv) wins outright and does NOT consume a count-based
+  // override slot. Otherwise the count-based override logic advances as usual.
+  function itemContribution(item, d, ovState, dayOv) {
     if (item.active === false) return null;
     if (!occursOn(item, d)) return null;
-    var ov = occurrenceValue(item, d, ovState);
-    var value;
-    if (item.frequency === "ongoing") {
-      value = ov.isOverride ? ov.amount : ov.amount / daysInMonth(d);
+    var value, isOverride, dayOverridden = false;
+    var dayHit = dayOv ? dayOv[item.id + "|" + iso(d)] : null;
+    if (dayHit) {
+      value = Number(dayHit.amount) || 0;
+      isOverride = true;
+      dayOverridden = true;
     } else {
-      value = ov.amount;
+      var ov = occurrenceValue(item, d, ovState);
+      isOverride = ov.isOverride;
+      value = item.frequency === "ongoing"
+        ? (ov.isOverride ? ov.amount : ov.amount / daysInMonth(d))
+        : ov.amount;
     }
     var signed = item.type === "income" ? value : -value;
-    return { name: item.name, type: item.type, amount: round2(signed), isOverride: ov.isOverride };
+    return { itemId: item.id, name: item.name, type: item.type, amount: round2(signed), isOverride: isOverride, dayOverridden: dayOverridden };
   }
 
   /*
@@ -136,6 +143,8 @@
     });
 
     var ovState = buildOverrideState(state);
+    var dayOv = {};
+    (state.dayOverrides || []).forEach(function (o) { dayOv[o.itemId + "|" + o.date] = o; });
     var items = state.items || [];
 
     var rows = [];
@@ -151,8 +160,9 @@
       // Recurring items (iterate in stored order so override counters advance
       // deterministically across the whole window).
       for (var i = 0; i < items.length; i++) {
-        var c = itemContribution(items[i], cur, ovState);
-        if (!c || c.amount === 0) continue;
+        var c = itemContribution(items[i], cur, ovState, dayOv);
+        if (!c) continue;
+        if (c.amount === 0 && !c.dayOverridden) continue; // keep zeroed-out overrides visible
         lines.push(c);
         if (c.amount >= 0) income += c.amount;
         else expense += c.amount;

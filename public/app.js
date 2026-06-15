@@ -18,7 +18,7 @@ const db = getFirestore(fbApp);
 setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ---- Shared state, kept live by Firestore listeners ----
-const data = { items: [], overrides: [], anchors: [], manual: [] };
+const data = { items: [], overrides: [], anchors: [], manual: [], dayOverrides: [] };
 let me = { name: "", email: "" };
 let openDetails = {};
 let unsub = [];
@@ -73,7 +73,7 @@ async function enterApp() {
 }
 
 // ===================== FIRESTORE SYNC =====================
-const COLLECTIONS = ["items", "overrides", "anchors", "manual"];
+const COLLECTIONS = ["items", "overrides", "anchors", "manual", "dayOverrides"];
 
 function startListeners() {
   stopListeners();
@@ -141,6 +141,16 @@ function saveOverride(ov) { setDoc(doc(db, "overrides", ov.id), ov).catch(failSa
 function deleteOverride(id) { deleteDoc(doc(db, "overrides", id)).catch(failSave); }
 function saveManual(m) { setDoc(doc(db, "manual", m.id), m).catch(failSave); }
 function deleteManual(id) { deleteDoc(doc(db, "manual", id)).catch(failSave); }
+// Per-day, single-occurrence override of one item's amount (does not affect
+// any other day). Deterministic id so re-editing the same day upserts.
+function dayOvId(itemId, date) { return `${itemId}__${date}`; }
+function setDayOverride(itemId, date, amount) {
+  const id = dayOvId(itemId, date);
+  setDoc(doc(db, "dayOverrides", id), { id, itemId, date, amount, by: me.name }).catch(failSave);
+}
+function clearDayOverride(itemId, date) {
+  deleteDoc(doc(db, "dayOverrides", dayOvId(itemId, date))).catch(failSave);
+}
 function failSave(e) { console.error(e); setSync("err"); }
 
 // ===================== TABS =====================
@@ -303,21 +313,55 @@ function detailRow(r) {
     const row = document.createElement("div");
     row.className = "det-line";
     const left = document.createElement("span");
-    left.innerHTML = escapeHTML(ln.name) + (ln.isOverride ? `<span class="ov">(override)</span>` : "");
-    const right = document.createElement("span");
-    right.className = ln.amount >= 0 ? "pos num" : "neg num";
-    right.textContent = fmt(ln.amount);
+    left.innerHTML = escapeHTML(ln.name) + (ln.isOverride && !ln.dayOverridden ? `<span class="ov">(override)</span>` : "");
     row.appendChild(left);
-    row.appendChild(right);
+
+    const right = document.createElement("span");
+    right.className = "det-amt";
+
     if (ln.manual) {
+      // One-off entries: show amount + remove button.
+      const amt = document.createElement("span");
+      amt.className = ln.amount >= 0 ? "pos num" : "neg num";
+      amt.textContent = fmt(ln.amount);
+      right.appendChild(amt);
       const del = document.createElement("button");
       del.textContent = "✕";
-      del.className = "det-btn";
+      del.className = "det-revert";
       del.title = "Remove this one-off entry";
-      del.style.marginLeft = "8px";
       del.addEventListener("click", () => deleteManual(ln.id));
-      row.appendChild(del);
+      right.appendChild(del);
+    } else {
+      // Recurring occurrence: edit just this day's amount in place.
+      const sign = document.createElement("span");
+      sign.className = "det-sign " + (ln.type === "income" ? "pos" : "neg");
+      sign.textContent = ln.type === "income" ? "+$" : "−$";
+      const input = document.createElement("input");
+      input.className = "det-edit num " + (ln.type === "income" ? "pos" : "neg") + (ln.dayOverridden ? " ov-edit" : "");
+      input.inputMode = "decimal";
+      input.value = Math.round(Math.abs(ln.amount));
+      input.title = "Edit only this day's amount — other days are unchanged. Clear to revert.";
+      input.addEventListener("focus", () => input.select());
+      input.addEventListener("change", () => {
+        const raw = input.value.trim().replace(/[$,\s]/g, "");
+        if (raw === "") { ln.dayOverridden ? clearDayOverride(ln.itemId, r.date) : renderCalendar(); return; }
+        const v = Math.abs(Number(raw));
+        if (Number.isNaN(v)) { renderCalendar(); return; }
+        setDayOverride(ln.itemId, r.date, v);
+      });
+      right.appendChild(sign);
+      right.appendChild(input);
+      if (ln.dayOverridden) {
+        const rev = document.createElement("button");
+        rev.className = "det-revert";
+        rev.textContent = "↺";
+        rev.title = "Revert to the usual amount";
+        rev.addEventListener("click", () => clearDayOverride(ln.itemId, r.date));
+        right.appendChild(rev);
+      }
     }
+
+    row.appendChild(right);
     list.appendChild(row);
   });
   const add = document.createElement("div");
