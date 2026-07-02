@@ -159,12 +159,15 @@ $$(".tab").forEach((t) =>
   t.addEventListener("click", () => {
     $$(".tab").forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
-    ["calendar", "items", "overrides", "graph"].forEach((name) =>
+    ["calendar", "items", "overrides", "graph", "withdraw"].forEach((name) =>
       $(`#tab-${name}`).classList.toggle("hidden", name !== t.dataset.tab)
     );
     if (t.dataset.tab === "graph") renderGraph();
+    if (t.dataset.tab === "withdraw" && $("#wdAmount").value.trim()) computeWithdraw();
   })
 );
+$("#wdGo").addEventListener("click", computeWithdraw);
+$("#wdAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") computeWithdraw(); });
 $("#horizon").addEventListener("change", render);
 $("#togglePast").addEventListener("click", () => {
   showPast = !showPast;
@@ -564,6 +567,88 @@ function statCard(lbl, val, sub, danger) {
   return `<div class="graph-stat"><div class="lbl">${lbl}</div>` +
     `<div class="val ${danger ? "neg" : "pos"}">${val}</div>` +
     `<div class="lbl">${sub || ""}</div></div>`;
+}
+
+// ===================== WITHDRAW PLANNER =====================
+// safe: stays >= $1,000 · caution: dips below $1,000 but stays >= 0 · danger: goes negative
+function statusOf(v) { return v >= LOW_THRESHOLD ? "safe" : v >= 0 ? "caution" : "danger"; }
+const STATUS_COLOR = { safe: "var(--green)", caution: "var(--orange)", danger: "var(--red)" };
+
+function computeWithdraw() {
+  const out = $("#wdResult");
+  const X = Math.abs(Number(($("#wdAmount").value || "").replace(/[$,\s]/g, "")));
+  if (!X || Number.isNaN(X)) { out.innerHTML = `<p class="muted">Enter an amount, then tap “Find best day.”</p>`; return; }
+
+  const today = new Date();
+  const tISO = todayISO();
+  // Project from the earliest balance (correct carry), out far enough that a
+  // late-window withdrawal still has a full cycle of bills to be tested against.
+  let earliest = null;
+  data.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
+  const projStart = earliest && earliest < today ? earliest : today;
+  const rows = E.project(data, E.iso(projStart), E.iso(E.addDays(today, 45)));
+  const win = rows.filter((r) => r.date >= tISO);
+  if (win.length < 2) { out.innerHTML = `<p class="muted">Not enough projection data yet.</p>`; return; }
+
+  const lastCand = E.iso(E.addDays(today, 30));
+  const candidates = win.filter((r) => r.date <= lastCand);
+
+  // Removing X on day D lowers every balance from D onward by X. For each D,
+  // find the lowest balance from D forward (the cushion the withdrawal leaves).
+  const evals = candidates.map((c) => {
+    let minAfter = Infinity, minDate = c.date;
+    for (const r of win) {
+      if (r.date < c.date) continue;
+      const b = r.end - X;
+      if (b < minAfter) { minAfter = b; minDate = r.date; }
+    }
+    return { date: c.date, balAfter: c.end - X, minAfter, minDate };
+  });
+
+  // Best = the day that leaves the highest cushion; earliest wins ties.
+  let best = evals[0];
+  for (const e of evals) if (e.minAfter > best.minAfter + 0.005) best = e;
+
+  // The earliest day that's still safe is often the more actionable answer.
+  const dlabel = (iso) => { const d = E.parseISO(iso); return `${DOW[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()}`; };
+  const firstSafe = evals.find((e) => e.minAfter >= LOW_THRESHOLD);
+  const firstPositive = evals.find((e) => e.minAfter >= 0);
+  let earliestLine = "";
+  if (firstSafe && firstSafe.date !== best.date) earliestLine = `Earliest fully-safe day: <strong>${dlabel(firstSafe.date)}</strong>`;
+  else if (!firstSafe && firstPositive) earliestLine = `Earliest day you stay positive: <strong>${dlabel(firstPositive.date)}</strong>`;
+
+  const st = statusOf(best.minAfter);
+  const bd = E.parseISO(best.date);
+  const md = E.parseISO(best.minDate);
+  const dayLabel = `${DOW[bd.getDay()]} ${MON[bd.getMonth()]} ${bd.getDate()}`;
+  const lowWhen = `${MON[md.getMonth()]} ${md.getDate()}`;
+  const msg =
+    st === "safe" ? `Safe — your balance stays above $1,000 the whole time.` :
+    st === "caution" ? `Doable, but afterward the balance dips to ${fmt(best.minAfter)} (below $1,000) around ${lowWhen}.` :
+    `⚠ No day in the next 30 keeps you positive — removing ${fmt(X)} would overdraw to ${fmt(best.minAfter)} around ${lowWhen}.`;
+
+  const listRows = evals.map((e) => {
+    const d = E.parseISO(e.date);
+    const s = statusOf(e.minAfter);
+    const isBest = e.date === best.date;
+    return `<div class="wd-row${isBest ? " best" : ""}">` +
+      `<span>${DOW[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()}${isBest ? ' <span class="ov">best</span>' : ""}</span>` +
+      `<span class="num">${fmt(e.balAfter)}</span>` +
+      `<span class="num" style="color:${STATUS_COLOR[s]}">${fmt(e.minAfter)}</span>` +
+      `<span class="wd-dot" style="background:${STATUS_COLOR[s]}"></span>` +
+      `</div>`;
+  }).join("");
+
+  out.innerHTML =
+    `<div class="wd-headline ${st}">` +
+      `<div class="wd-hl-label">Best day to remove ${fmt(X)}</div>` +
+      `<div class="wd-hl-day ${st}">${dayLabel}</div>` +
+      `<div class="wd-hl-sub">Balance right after: ${fmt(best.balAfter)} · Lowest afterward: ${fmt(best.minAfter)}</div>` +
+      (earliestLine ? `<div class="wd-hl-sub">${earliestLine}</div>` : "") +
+      `<div class="wd-hl-msg">${msg}</div>` +
+    `</div>` +
+    `<div class="wd-row wd-head"><span>Day</span><span>After</span><span>Lowest after</span><span></span></div>` +
+    `<div class="wd-list">${listRows}</div>`;
 }
 
 // ===================== MODALS =====================

@@ -200,3 +200,23 @@ td.c-bal.bal-low { background: rgba(248, 113, 113, 0.12); }
 .graph-stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; flex: 1 1 120px; }
 .graph-stat .lbl { font-size: 12px; color: var(--muted); }
 .graph-stat .val { font-size: 18px; font-weight: 700; margin-top: 2px; }
+
+/* ---- Withdraw planner ---- */
+.wd-input { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 120px; }
+.wd-headline { border-radius: 12px; padding: 16px; margin: 2px 0 14px; border: 1px solid var(--line); background: var(--panel); }
+.wd-headline.safe { border-color: rgba(52, 211, 153, 0.5); }
+.wd-headline.caution { border-color: rgba(251, 146, 60, 0.5); }
+.wd-headline.danger { border-color: rgba(248, 113, 113, 0.6); }
+.wd-hl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.wd-hl-day { font-size: 26px; font-weight: 800; margin: 4px 0; }
+.wd-hl-day.safe { color: var(--green); }
+.wd-hl-day.caution { color: var(--orange); }
+.wd-hl-day.danger { color: var(--red); }
+.wd-hl-sub { color: var(--muted); font-size: 13px; }
+.wd-hl-msg { margin-top: 8px; font-weight: 600; }
+.wd-list { display: flex; flex-direction: column; }
+.wd-row { display: grid; grid-template-columns: 1fr auto auto 14px; gap: 12px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.wd-row.best { background: rgba(56, 189, 248, 0.1); border-radius: 8px; font-weight: 600; }
+.wd-row.wd-head { color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--line); }
+.wd-dot { width: 10px; height: 10px; border-radius: 50%; }
+.wd-row .ov { color: var(--accent); font-size: 11px; margin-left: 6px; }

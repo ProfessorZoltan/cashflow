@@ -29,6 +29,7 @@
         <button class="tab" data-tab="items">Recurring</button>
         <button class="tab" data-tab="overrides">Overrides</button>
         <button class="tab" data-tab="graph">Graph</button>
+        <button class="tab" data-tab="withdraw">Withdraw</button>
       </nav>
       <div class="who">
         <span id="whoLabel" class="pill"></span>
@@ -108,6 +109,20 @@
           <span class="key"><span class="swatch" style="background:#f87171"></span> Below $1,000</span>
           <span class="key">— — $1,000 line</span>
         </div>
+      </div>
+    </section>
+
+    <!-- WITHDRAW PLANNER -->
+    <section id="tab-withdraw" class="tab-panel hidden">
+      <div class="toolbar">
+        <label class="rangelabel">Remove
+          <input id="wdAmount" class="wd-input" inputmode="decimal" placeholder="$ amount" />
+        </label>
+        <button id="wdGo" class="primary">Find best day</button>
+      </div>
+      <div class="graph-scroll">
+        <p class="muted" style="margin:2px 0 12px">Finds the day in the next 30 days when pulling this amount out leaves the biggest safety cushion — and warns if it would push you below $1,000 or negative afterward.</p>
+        <div id="wdResult"></div>
       </div>
     </section>
   </div>
