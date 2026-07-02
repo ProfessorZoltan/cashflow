@@ -86,6 +86,14 @@ input, select { font: inherit; }
 .dot.saving { background: var(--amber); }
 .dot.err { background: var(--red); }
 
+/* ---- Scope switcher (Combined / Eric / Laura) ---- */
+.scopebar { flex: 0 0 auto; display: flex; gap: 6px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.scope { flex: 1; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-weight: 700; }
+.scope.active { color: #fff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25); }
+.tag.owner { border: none; color: #fff; }
+.tag.owner.eric { background: #2563eb; }
+.tag.owner.laura { background: #9333ea; }
+
 /* ---- Toolbar ---- */
 .toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px; flex-wrap: wrap; }
 .rangelabel { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }

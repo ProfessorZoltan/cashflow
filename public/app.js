@@ -22,6 +22,28 @@ const data = { items: [], overrides: [], anchors: [], manual: [], dayOverrides: 
 let me = { name: "", email: "" };
 let openDetails = {};
 let showPast = localStorage.getItem("cf_showPast") === "1";
+let view = localStorage.getItem("cf_view") || "combined"; // "combined" | "eric" | "laura"
+
+// ---- Ownership ----
+// Income: "Pay Day Eric" -> Eric; all other income -> Laura.
+// Expenses whose name contains a person's name -> that person; the rest use the
+// agreed flexible allocation; anything unrecognized falls back to Eric (visible
+// and reassignable in the Recurring tab).
+const OWNER_ALLOC = {
+  "mortgage": "eric", "all other expenses": "eric", "propane": "eric",
+  "gas": "eric", "water": "eric", "guitar": "eric", "church": "eric",
+  "groceries": "laura", "cleaning": "laura", "electricity and internet": "laura",
+  "home and car insurance": "laura", "horse lessons": "laura",
+  "usbank": "laura", "wells fargo": "laura", "theo therapy": "laura",
+};
+function computeOwner(item) {
+  const n = (item.name || "").toLowerCase().trim().replace(/\s+/g, " ");
+  if (item.type === "income") return n.includes("eric") ? "eric" : "laura";
+  if (n.includes("eric")) return "eric";
+  if (n.includes("laura")) return "laura";
+  return OWNER_ALLOC[n] || "eric";
+}
+function ownerLabel(o) { return o === "eric" ? "Eric" : o === "laura" ? "Laura" : "Combined"; }
 let unsub = [];
 let renderQueued = false;
 
@@ -68,6 +90,7 @@ async function enterApp() {
   $("#login").classList.add("hidden");
   $("#app").classList.remove("hidden");
   $("#whoLabel").textContent = me.name;
+  updateScope();
   await seedIfEmpty();
   startListeners();
   setTimeout(scrollToToday, 200);
@@ -84,6 +107,7 @@ function startListeners() {
       collection(db, name),
       (snap) => {
         data[name] = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
+        if (name === "items") autoTagOwners();
         scheduleRender();
         setSync(snap.metadata.hasPendingWrites ? "saving" : "ok");
       },
@@ -119,6 +143,39 @@ async function seedIfEmpty() {
   }
 }
 
+// One-time, non-destructive migration: give every existing item an `owner`
+// without touching its amount or any other field. Runs on load until all items
+// are tagged; idempotent if both people run it at once (same computed owner).
+function autoTagOwners() {
+  (data.items || []).forEach((it) => {
+    if (it.owner === "eric" || it.owner === "laura") return;
+    setDoc(doc(db, "items", it.id), { owner: computeOwner(it) }, { merge: true }).catch(failSave);
+  });
+}
+
+// Build a filtered slice of the data for the active scope. Combined = the whole
+// household (all items, plus the legacy/combined-owned balance anchors & one-offs).
+// Eric/Laura = only their items, anchors, and one-offs. Overrides & day-overrides
+// reference items, so the engine naturally ignores the other person's.
+function viewState() {
+  if (view === "combined") {
+    return {
+      items: data.items,
+      overrides: data.overrides,
+      dayOverrides: data.dayOverrides,
+      manual: data.manual,
+      anchors: data.anchors.filter((a) => (a.owner || "combined") === "combined"),
+    };
+  }
+  return {
+    items: data.items.filter((i) => i.owner === view),
+    overrides: data.overrides,
+    dayOverrides: data.dayOverrides,
+    manual: data.manual.filter((m) => m.owner === view),
+    anchors: data.anchors.filter((a) => a.owner === view),
+  };
+}
+
 function setSync(s) {
   const dot = $("#syncDot");
   if (!dot) return;
@@ -129,12 +186,16 @@ function setSync(s) {
 // ===================== MUTATIONS (direct Firestore writes) =====================
 function uid(p) { return p + "_" + Math.random().toString(36).slice(2, 9); }
 
+// Anchors are per-scope: combined keeps the legacy `date_kind` id (so existing
+// household anchors keep working) while Eric/Laura get their own `owner_date_kind`.
+function anchorId(date, kind) {
+  return view === "combined" ? `${date}_${kind}` : `${view}_${date}_${kind}`;
+}
 function setAnchor(date, kind, balance) {
-  const id = `${date}_${kind}`;
-  setDoc(doc(db, "anchors", id), { date, kind, balance, by: me.name }).catch(failSave);
+  setDoc(doc(db, "anchors", anchorId(date, kind)), { date, kind, balance, owner: view, by: me.name }).catch(failSave);
 }
 function clearAnchor(date, kind) {
-  deleteDoc(doc(db, "anchors", `${date}_${kind}`)).catch(failSave);
+  deleteDoc(doc(db, "anchors", anchorId(date, kind))).catch(failSave);
 }
 function saveItem(item) { setDoc(doc(db, "items", item.id), item).catch(failSave); }
 function deleteItem(id) { deleteDoc(doc(db, "items", id)).catch(failSave); }
@@ -166,6 +227,18 @@ $$(".tab").forEach((t) =>
     if (t.dataset.tab === "withdraw" && $("#wdAmount").value.trim()) computeWithdraw();
   })
 );
+$$(".scope").forEach((b) =>
+  b.addEventListener("click", () => {
+    view = b.dataset.scope;
+    localStorage.setItem("cf_view", view);
+    updateScope();
+    render();
+    if ($("#wdAmount").value.trim()) computeWithdraw();
+  })
+);
+function updateScope() {
+  $$(".scope").forEach((x) => x.classList.toggle("active", x.dataset.scope === view));
+}
 $("#wdGo").addEventListener("click", computeWithdraw);
 $("#wdAmount").addEventListener("keydown", (e) => { if (e.key === "Enter") computeWithdraw(); });
 $("#horizon").addEventListener("change", render);
@@ -190,11 +263,11 @@ function fmt(n) {
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function projectionRange() {
+function projectionRange(anchors) {
   const horizon = parseInt($("#horizon").value, 10);
   const today = new Date();
   let earliest = today;
-  data.anchors.forEach((a) => { const d = E.parseISO(a.date); if (d < earliest) earliest = d; });
+  (anchors || []).forEach((a) => { const d = E.parseISO(a.date); if (d < earliest) earliest = d; });
   const minStart = E.addDays(today, -30);
   const start = earliest > minStart ? earliest : minStart;
   return { fromISO: E.iso(start), toISO: E.iso(E.addDays(today, horizon)) };
@@ -209,8 +282,9 @@ function render() {
 
 function renderCalendar() {
   updatePastBtn();
-  const { fromISO, toISO } = projectionRange();
-  const allRows = E.project(data, fromISO, toISO);
+  const vs = viewState();
+  const { fromISO, toISO } = projectionRange(vs.anchors);
+  const allRows = E.project(vs, fromISO, toISO);
   const tISO = todayISO();
   // Always project from the earliest balance so the running total is correct,
   // but hide days before today unless the user opts to show them.
@@ -410,15 +484,24 @@ function updatePastBtn() {
 function renderItems() {
   const wrap = $("#itemsList");
   wrap.innerHTML = "";
-  const items = data.items.slice().sort((a, b) => {
+  let items = data.items.slice();
+  if (view !== "combined") items = items.filter((i) => i.owner === view);
+  items.sort((a, b) => {
     if (a.type !== b.type) return a.type === "income" ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
+  if (!items.length) {
+    wrap.innerHTML = `<p class="muted pad">No items in this account yet.</p>`;
+    return;
+  }
   items.forEach((it) => {
+    const owner = it.owner === "eric" || it.owner === "laura" ? it.owner : computeOwner(it);
+    const other = owner === "eric" ? "laura" : "eric";
     const card = document.createElement("div");
     card.className = "card" + (it.active === false ? " inactive" : "");
     card.innerHTML =
       `<div class="card-head"><span class="nm">${escapeHTML(it.name)}</span>` +
+      `<span class="tag owner ${owner}">${ownerLabel(owner)}</span>` +
       `<span class="tag ${it.type}">${it.type}</span></div>` +
       `<div class="card-sub">${escapeHTML(E.describe(it))}</div>` +
       `<div class="card-amt ${it.type === "income" ? "pos" : "neg"}">` +
@@ -427,6 +510,7 @@ function renderItems() {
     const actions = document.createElement("div");
     actions.className = "card-actions";
     actions.appendChild(mkBtn("Edit", () => openItemModal(it.id)));
+    actions.appendChild(mkBtn("→ " + ownerLabel(other), () => saveItem(Object.assign({}, it, { owner: other }))));
     actions.appendChild(mkBtn("Override next…", () => openOverrideModal(null, it.id)));
     actions.appendChild(mkBtn(it.active === false ? "Activate" : "Pause", () =>
       saveItem(Object.assign({}, it, { active: !(it.active !== false) }))
@@ -448,7 +532,12 @@ function mkBtn(label, fn, cls) {
 function renderOverrides() {
   const wrap = $("#overridesList");
   wrap.innerHTML = "";
-  const ovs = data.overrides.slice().sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1));
+  const ovs = data.overrides
+    .filter((o) => {
+      const it = data.items.find((i) => i.id === o.itemId);
+      return it && (view === "combined" || it.owner === view);
+    })
+    .sort((a, b) => (a.fromDate < b.fromDate ? -1 : 1));
   if (!ovs.length) { wrap.innerHTML = `<p class="muted pad">No overrides yet.</p>`; return; }
   ovs.forEach((ov) => {
     const it = data.items.find((i) => i.id === ov.itemId);
@@ -482,10 +571,11 @@ function renderGraph() {
 
   // Project from the earliest known balance so the running total is carried
   // forward correctly, then display from a week before today onward.
+  const vs = viewState();
   let earliest = null;
-  data.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
+  vs.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
   const projStart = earliest && earliest < today ? earliest : E.addDays(today, -7);
-  const allRows = E.project(data, E.iso(projStart), E.iso(E.addDays(today, horizon)));
+  const allRows = E.project(vs, E.iso(projStart), E.iso(E.addDays(today, horizon)));
   const displayStart = E.iso(E.addDays(today, -7));
   const rows = allRows.filter((r) => r.date >= displayStart);
   if (rows.length < 2) { wrap.innerHTML = `<p class="muted">Not enough data to chart yet.</p>`; return; }
@@ -583,10 +673,11 @@ function computeWithdraw() {
   const tISO = todayISO();
   // Project from the earliest balance (correct carry), out far enough that a
   // late-window withdrawal still has a full cycle of bills to be tested against.
+  const vs = viewState();
   let earliest = null;
-  data.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
+  vs.anchors.forEach((a) => { const d = E.parseISO(a.date); if (!earliest || d < earliest) earliest = d; });
   const projStart = earliest && earliest < today ? earliest : today;
-  const rows = E.project(data, E.iso(projStart), E.iso(E.addDays(today, 45)));
+  const rows = E.project(vs, E.iso(projStart), E.iso(E.addDays(today, 45)));
   const win = rows.filter((r) => r.date >= tISO);
   if (win.length < 2) { out.innerHTML = `<p class="muted">Not enough projection data yet.</p>`; return; }
 
@@ -670,7 +761,7 @@ function openManualModal(date, type) {
   $("#m_save").onclick = () => {
     const amt = Number(($("#m_amt").value || "").replace(/[$,\s]/g, ""));
     if (!amt) { closeModal(); return; }
-    saveManual({ id: uid("man"), date, type, amount: Math.abs(amt), label: $("#m_label").value.trim(), by: me.name });
+    saveManual({ id: uid("man"), date, type, amount: Math.abs(amt), label: $("#m_label").value.trim(), owner: view, by: me.name });
     closeModal();
   };
 }
@@ -678,6 +769,7 @@ function openManualModal(date, type) {
 function openItemModal(itemId) {
   const it = itemId ? data.items.find((i) => i.id === itemId) : null;
   const cur = it || { type: "expense", frequency: "monthly", amount: 0, dayOfMonth: 1, dayOfWeek: 0, anchorDate: todayISO(), active: true, name: "" };
+  const curOwner = it ? (it.owner === "eric" || it.owner === "laura" ? it.owner : computeOwner(it)) : (view !== "combined" ? view : "eric");
   openModal(`
     <h2>${it ? "Edit item" : "Add item"}</h2>
     <div class="field"><label>Name</label><input id="i_name" value="${escapeAttr(cur.name)}" placeholder="e.g. Mortgage" /></div>
@@ -685,6 +777,12 @@ function openItemModal(itemId) {
       <div class="seg" id="i_type">
         <button data-v="income" class="${cur.type === "income" ? "sel" : ""}">Income</button>
         <button data-v="expense" class="${cur.type === "expense" ? "sel" : ""}">Expense</button>
+      </div>
+    </div>
+    <div class="field"><label>Account (owner)</label>
+      <div class="seg" id="i_owner">
+        <button data-v="eric" class="${curOwner === "eric" ? "sel" : ""}">Eric</button>
+        <button data-v="laura" class="${curOwner === "laura" ? "sel" : ""}">Laura</button>
       </div>
     </div>
     <div class="field"><label>Frequency</label>
@@ -712,6 +810,9 @@ function openItemModal(itemId) {
   $$("#i_type button").forEach((b) =>
     b.addEventListener("click", () => { $$("#i_type button").forEach((x) => x.classList.remove("sel")); b.classList.add("sel"); })
   );
+  $$("#i_owner button").forEach((b) =>
+    b.addEventListener("click", () => { $$("#i_owner button").forEach((x) => x.classList.remove("sel")); b.classList.add("sel"); })
+  );
   const freqSel = $("#i_freq");
   function syncFreqFields() {
     const f = freqSel.value;
@@ -732,6 +833,7 @@ function openItemModal(itemId) {
     saveItem({
       id, name,
       type: $("#i_type button.sel").dataset.v,
+      owner: $("#i_owner button.sel").dataset.v,
       frequency: freqSel.value,
       amount: Number(($("#i_amt").value || "0").replace(/[$,\s]/g, "")) || 0,
       dayOfMonth: Math.min(31, Math.max(1, parseInt($("#i_dom").value, 10) || 1)),

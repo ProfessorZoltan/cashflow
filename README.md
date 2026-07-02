@@ -27,6 +27,12 @@ maintained inside the app.
 - **Edit a single day in place** — expand a day (`›`) and type a new amount on
   any income/expense line to change just that one occurrence; other days are
   untouched. A `↺` reverts it to the usual amount.
+- **Separate accounts** — a **Combined / Eric / Laura** switcher scopes every
+  view. Each item has an owner (auto-tagged: Pay Day Eric → Eric, other income →
+  Laura, name-matched expenses to that person, the rest by the agreed split;
+  reassign anytime on a Recurring card or in its editor). Eric and Laura each
+  keep their own balance anchors and one-off entries; Combined stays the whole
+  household ledger.
 - **One-off entries** — expand a day (`›`) to add a one-time misc income/expense.
 
 ---
