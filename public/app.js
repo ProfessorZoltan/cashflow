@@ -254,6 +254,7 @@ window.addEventListener("resize", () => { clearTimeout(_grResize); _grResize = s
 $("#todayBtn").addEventListener("click", scrollToToday);
 $("#addItemBtn").addEventListener("click", () => openItemModal(null));
 $("#addOverrideBtn").addEventListener("click", () => openOverrideModal(null));
+$("#itemSearch").addEventListener("input", renderItems);
 
 // ===================== RENDER =====================
 function fmt(n) {
@@ -481,22 +482,91 @@ function updatePastBtn() {
   if (b) b.textContent = showPast ? "Hide past days" : "Show past days";
 }
 
+// The next calendar date (today or later) an item occurs, or null. Ongoing
+// items happen every day, so "next" is today.
+function nextOccurrence(item) {
+  if (item.active === false) return null;
+  if (item.frequency === "ongoing") return { dateISO: todayISO(), ongoing: true };
+  const today = new Date();
+  for (let i = 0; i <= 400; i++) {
+    const d = E.addDays(today, i);
+    if (E.occursOn(item, d)) return { dateISO: E.iso(d), ongoing: false };
+  }
+  return null;
+}
+function daysFromToday(dateISO) {
+  const t = new Date();
+  const tm = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.round((E.parseISO(dateISO) - tm) / 86400000);
+}
+function relDay(dateISO) {
+  const n = daysFromToday(dateISO);
+  return n <= 0 ? "today" : n === 1 ? "tomorrow" : `in ${n} days`;
+}
+
+// Programmatically switch tabs (used by "Go to day").
+function setTab(name) {
+  $$(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === name));
+  ["calendar", "items", "overrides", "graph", "withdraw"].forEach((n) =>
+    $(`#tab-${n}`).classList.toggle("hidden", n !== name)
+  );
+}
+
+// Jump to a date on the Daily tab: make sure the right account scope and horizon
+// show it, open its breakdown, and scroll to it.
+function jumpToDay(dateISO, owner) {
+  if (owner && view !== "combined" && view !== owner) {
+    view = owner;
+    localStorage.setItem("cf_view", view);
+    updateScope();
+  }
+  const need = daysFromToday(dateISO);
+  const sel = $("#horizon");
+  const cur = parseInt(sel.value, 10);
+  if (need > cur) {
+    const opt = [30, 60, 90, 180, 365].find((v) => v >= need) || 365;
+    sel.value = String(opt);
+  }
+  setTab("calendar");
+  openDetails[dateISO] = true;
+  renderCalendar();
+  setTimeout(() => {
+    const el = $("#row-" + dateISO);
+    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 70);
+}
+
 function renderItems() {
   const wrap = $("#itemsList");
   wrap.innerHTML = "";
+  const q = ($("#itemSearch") && $("#itemSearch").value || "").trim().toLowerCase();
   let items = data.items.slice();
   if (view !== "combined") items = items.filter((i) => i.owner === view);
+  if (q) {
+    items = items.filter((i) =>
+      (i.name || "").toLowerCase().includes(q) ||
+      i.type.includes(q) ||
+      ownerLabel(i.owner === "eric" || i.owner === "laura" ? i.owner : computeOwner(i)).toLowerCase().includes(q)
+    );
+  }
   items.sort((a, b) => {
     if (a.type !== b.type) return a.type === "income" ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
   if (!items.length) {
-    wrap.innerHTML = `<p class="muted pad">No items in this account yet.</p>`;
+    wrap.innerHTML = `<p class="muted pad">${q ? `No income or expenses match “${escapeHTML(q)}”.` : "No items in this account yet."}</p>`;
     return;
   }
   items.forEach((it) => {
     const owner = it.owner === "eric" || it.owner === "laura" ? it.owner : computeOwner(it);
     const other = owner === "eric" ? "laura" : "eric";
+    const next = nextOccurrence(it);
+    const nextText = !next
+      ? (it.active === false ? "Paused — not scheduled" : "No upcoming date")
+      : next.ongoing
+      ? "Next: today, then every day (ongoing)"
+      : (() => { const d = E.parseISO(next.dateISO); return `Next: ${DOW[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()} · ${relDay(next.dateISO)}`; })();
+
     const card = document.createElement("div");
     card.className = "card" + (it.active === false ? " inactive" : "");
     card.innerHTML =
@@ -506,9 +576,11 @@ function renderItems() {
       `<div class="card-sub">${escapeHTML(E.describe(it))}</div>` +
       `<div class="card-amt ${it.type === "income" ? "pos" : "neg"}">` +
       (it.frequency === "ongoing" ? `${fmt(it.amount)}/mo` : `${fmt(it.amount)}`) +
-      `</div>`;
+      `</div>` +
+      `<div class="card-next ${next ? "" : "muted"}">${nextText}</div>`;
     const actions = document.createElement("div");
     actions.className = "card-actions";
+    if (next) actions.appendChild(mkBtn("Go to day", () => jumpToDay(next.dateISO, owner)));
     actions.appendChild(mkBtn("Edit", () => openItemModal(it.id)));
     actions.appendChild(mkBtn("→ " + ownerLabel(other), () => saveItem(Object.assign({}, it, { owner: other }))));
     actions.appendChild(mkBtn("Override next…", () => openOverrideModal(null, it.id)));

@@ -167,6 +167,13 @@ td.c-bal.bal-low { background: rgba(248, 113, 113, 0.12); }
 .tag.income { color: var(--green); border-color: rgba(52,211,153,.4); }
 .tag.expense { color: var(--red); border-color: rgba(248,113,113,.4); }
 .card-sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.card-next { font-size: 13px; margin-top: 6px; color: var(--accent); font-weight: 600; }
+.card-next.muted { color: var(--muted); font-weight: 400; }
+.search-input {
+  flex: 1; min-width: 140px; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px;
+}
+.search-input:focus { outline: none; border-color: var(--accent); }
 .card-amt { font-size: 18px; font-weight: 700; margin-top: 6px; }
 .card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .card-actions button { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 13px; }
